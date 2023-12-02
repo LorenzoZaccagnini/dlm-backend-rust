@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package positionshare;
+
+service Position {
+    rpc SendPosition(SendPositionRequest) returns (SendPositionResponse) {}
+    rpc GetPosition(GetPositionRequest) returns (GetPositionResponse) {}
+    rpc CloseSession(CloseSessionRequest) returns (CloseSessionResponse) {}
+}
+
+message SendPositionRequest {
+    string geo_sender_pubkey = 1;
+    string encpayload = 3;
+}
+
+message SendPositionResponse {
+    bool success = 1;
+}
+
+message GetPositionRequest {
+    string geo_sender_pubkey = 1;
+}
+
+message GetPositionResponse {
+    string encpayload = 1;
+}
+
+message CloseSessionRequest {
+    string geo_sender_pubkey = 1;
+    string signed_close_session_msg = 2;
+}
+
+message CloseSessionResponse {
+    bool success = 1;
+}

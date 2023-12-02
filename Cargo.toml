@@ -1,0 +1,32 @@
+[package]
+name = "rust-test-ecies"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+# server binary
+[[bin]]
+    name = "server"
+    path = "src/server/server.rs"
+
+# client binary
+[[bin]]
+    name = "client"
+    path = "src/client/client.rs"
+
+# client receiver binary
+[[bin]]
+    name = "client_receiver"
+    path = "src/client_rec/client_rec.rs"
+
+[dependencies]
+ecies = {version = "0.2", default-features = false, features = ["xchacha20"]}
+tonic = "0.10"
+prost = "0.12"
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
+rand = "0.8.5"
+hex = "0.4"
+
+[build-dependencies]
+tonic-build = "0.10"
