@@ -15,11 +15,6 @@ edition = "2021"
     name = "client"
     path = "src/client/client.rs"
 
-# client receiver binary
-[[bin]]
-    name = "client_receiver"
-    path = "src/client_rec/client_rec.rs"
-
 [dependencies]
 ecies = {version = "0.2", default-features = false, features = ["xchacha20"]}
 tonic = "0.10"

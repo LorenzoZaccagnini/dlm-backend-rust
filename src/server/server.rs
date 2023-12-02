@@ -29,11 +29,11 @@ impl Position for MyPosition {
         println!("Got a request: {:?}", request);
 
         let request = request.into_inner();
-        let encpayload = &request.encpayload;
+        let encpayload = request.encpayload;
         let geo_sender_pubkey = &request.geo_sender_pubkey;
 
         let payload = Payload {
-            encpayload: encpayload.clone(),
+            encpayload: encpayload,
             geo_sender_pubkey: geo_sender_pubkey.clone(),
         };
 
