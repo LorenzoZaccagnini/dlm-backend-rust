@@ -75,6 +75,16 @@ impl Position for MyPosition {
     ) -> Result<Response<CloseSessionResponse>, Status> {
         println!("Got a request: {:?}", request);
 
+        // delete session from hashmap using public key as index
+        let geo_sender_pubkey = request.into_inner().geo_sender_pubkey;
+
+        let mut payloads = self.payloads.lock().unwrap();
+
+        match payloads.remove(&geo_sender_pubkey) {
+            Some(_) => println!("Session deleted"),
+            None => println!("Session not found"),
+        }
+
         let reply = position_share::CloseSessionResponse {
             success: true,
         };
