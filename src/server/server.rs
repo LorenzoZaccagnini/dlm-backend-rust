@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 use tonic::{transport::Server, Request, Response, Status};
-
 use position_share::position_server::{Position, PositionServer};
 use position_share::{SendPositionRequest, SendPositionResponse, GetPositionRequest, GetPositionResponse, CloseSessionRequest, CloseSessionResponse};
+use k256::ecdsa::{ Signature, VerifyingKey, signature::Verifier};
 
 pub mod position_share {
     tonic::include_proto!("positionshare");
@@ -75,20 +75,56 @@ impl Position for MyPosition {
     ) -> Result<Response<CloseSessionResponse>, Status> {
         println!("Got a request: {:?}", request);
 
-        // delete session from hashmap using public key as index
-        let geo_sender_pubkey = request.into_inner().geo_sender_pubkey;
-
-        let mut payloads = self.payloads.lock().unwrap();
-
-        match payloads.remove(&geo_sender_pubkey) {
-            Some(_) => println!("Session deleted"),
-            None => println!("Session not found"),
-        }
-
-        let reply = position_share::CloseSessionResponse {
-            success: true,
+        let (geo_sender_pubkey, signature, close_session_msg) = {
+            let inner = request.into_inner();
+            (inner.geo_sender_pubkey, inner.signature, inner.close_session_msg)
         };
 
+        // decode message
+        let close_session_msg = hex::decode(close_session_msg).unwrap();
+        let close_session_msg = String::from_utf8(close_session_msg).unwrap();
+
+        // signature
+        let signature = hex::decode(signature).unwrap();
+        let signature: Signature = Signature::from_slice(&signature).unwrap();
+
+        // decode public key
+        let geo_sender_pubkey_clone = geo_sender_pubkey.clone();
+        let geo_sender_pubkey = hex::decode(geo_sender_pubkey).unwrap();
+        let public_key_sec = geo_sender_pubkey.as_slice();
+
+        let verify_key_result = VerifyingKey::from_sec1_bytes(public_key_sec);
+    
+
+        let verification_success = if let Ok(verify_key) = verify_key_result {
+            let rtn = verify_key.verify(close_session_msg.as_bytes(), &signature).is_ok();
+            println!("Verification result: {:?}", rtn);
+            rtn
+        } else {
+            println!("Failed to create verifying key");
+            false
+        };
+
+        let mut payloads = self.payloads.lock().unwrap();
+        
+        // delete session from hashmap using public key as index
+        if verification_success {
+            match payloads.remove(&geo_sender_pubkey_clone) {
+                Some(_) => println!("Session deleted"),
+                None => println!("Session not found"),
+            }
+        }
+
+        // if false exit all
+        if !verification_success {
+            println!("Verification failed");
+            return Err(Status::invalid_argument("Verification failed"));
+        }
+        
+        let reply = position_share::CloseSessionResponse {
+            success: verification_success,
+        };
+        
         Ok(Response::new(reply))
     }
 }
@@ -98,7 +134,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = "[::1]:50051".parse().unwrap();
     let position = MyPosition::default();
 
-    println!("Position server listening on {}", addr);
+    println!("Dammi la mano server listening on {}", addr);
 
     Server::builder()
         .add_service(PositionServer::new(position))

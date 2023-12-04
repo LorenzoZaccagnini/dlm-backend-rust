@@ -27,7 +27,8 @@ message GetPositionResponse {
 
 message CloseSessionRequest {
     string geo_sender_pubkey = 1;
-    string signed_close_session_msg = 2;
+    string close_session_msg = 2;
+    string signature = 3;
 }
 
 message CloseSessionResponse {

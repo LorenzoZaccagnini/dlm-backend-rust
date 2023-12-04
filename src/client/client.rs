@@ -1,15 +1,25 @@
 use ecies::decrypt;
 use ecies::{encrypt, utils::generate_keypair};
 use hex::ToHex;
+use k256::{
+    ecdsa::{Signature, SigningKey, signature::Signer},
+    SecretKey,
+};
 use position_share::position_client::PositionClient;
-use position_share::{GetPositionRequest, SendPositionRequest, SendPositionResponse, GetPositionResponse, CloseSessionRequest, CloseSessionResponse};
+use position_share::{
+    CloseSessionRequest, CloseSessionResponse, GetPositionRequest, GetPositionResponse,
+    SendPositionRequest, SendPositionResponse,
+};
 use rand::Rng;
 
 pub mod position_share {
     tonic::include_proto!("positionshare");
 }
 
-async fn send_position(pk_receiver: &[u8; 65], pk_sender: &[u8; 65]) -> Result<tonic::Response<SendPositionResponse>, Box<dyn std::error::Error>> {
+async fn send_position(
+    pk_receiver: &[u8; 65],
+    pk_sender: &[u8; 65],
+) -> Result<tonic::Response<SendPositionResponse>, Box<dyn std::error::Error>> {
     // convert receiver public key to str, just for simulation that it is received from the other party
     let pk_receiver_string = pk_receiver.encode_hex::<String>();
 
@@ -39,9 +49,12 @@ async fn send_position(pk_receiver: &[u8; 65], pk_sender: &[u8; 65]) -> Result<t
     Ok(response)
 }
 
-async fn get_position(pk_sender: &[u8; 65], sk_receiver: &[u8; 32]) -> Result<tonic::Response<GetPositionResponse>, Box<dyn std::error::Error>> {
+async fn get_position(
+    pk_sender: &[u8; 65],
+    sk_receiver: &[u8; 32],
+) -> Result<tonic::Response<GetPositionResponse>, Box<dyn std::error::Error>> {
     let rec_request = tonic::Request::new(GetPositionRequest {
-        geo_sender_pubkey: pk_sender.encode_hex::<String>()
+        geo_sender_pubkey: pk_sender.encode_hex::<String>(),
     });
 
     let mut client = PositionClient::connect("http://[::1]:50051").await?;
@@ -69,14 +82,31 @@ async fn get_position(pk_sender: &[u8; 65], sk_receiver: &[u8; 32]) -> Result<to
     Ok(tonic::Response::new(inner_response))
 }
 
-async fn close_session(pk_sender: &[u8; 65]) -> Result<tonic::Response<CloseSessionResponse>, Box<dyn std::error::Error>> {
+async fn close_session(
+    pk_sender: &[u8; 65],
+    sk_sender: &[u8; 32],
+) -> Result<tonic::Response<CloseSessionResponse>, Box<dyn std::error::Error>> {
+    // message for closing session
+    let message = String::from("this is the end my friend");
 
-    const MGS : &str = "close session";
+    let msg = message.as_bytes();
 
+    let secret_key = SecretKey::from_slice(sk_sender.as_slice())
+        .expect("Failed to create secret key from bytes");
+
+    let signing_key = SigningKey::from(secret_key);
+
+    println!(
+        "Signing key: {:?}",
+        signing_key.to_bytes().encode_hex::<String>()
+    );
+
+    let signature: Signature = signing_key.sign(msg);
 
     let request = tonic::Request::new(CloseSessionRequest {
         geo_sender_pubkey: pk_sender.encode_hex::<String>(),
-        signed_close_session_msg: MGS.to_string(),
+        close_session_msg: message.encode_hex::<String>(),
+        signature: signature.to_bytes().encode_hex::<String>(),
     });
 
     let mut client = PositionClient::connect("http://[::1]:50051").await?;
@@ -109,8 +139,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (sk_receiver, pk_receiver) = (sk_receiver.as_bytes(), pk_receiver.as_bytes());
 
     // print receiver keys
-    println!("Receiver public key: {}", pk_receiver.encode_hex::<String>());
-    println!("Receiver private key: {}", sk_receiver.encode_hex::<String>());
+    println!(
+        "Receiver public key: {}",
+        pk_receiver.encode_hex::<String>()
+    );
+    println!(
+        "Receiver private key: {}",
+        sk_receiver.encode_hex::<String>()
+    );
 
     // simulate sending and receiving of coordinates
     for _ in 0..4 {
@@ -119,14 +155,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // close session
-    close_session(pk_sender).await?;
+    close_session(pk_sender, sk_sender).await?;
 
     Ok(())
 }
 
 // create a function that creates a random latitude and longitude
 fn create_random_coordinate() -> String {
-    let lat_lng = vec!["41.8931:12.4828", "40.7128:74.0060", "51.5074:0.1278", "48.8566:2.3522", "55.7558:37.6173", "52.5200:13.4050", "37.7749:122.4194", "35.6895:139.6917", "37.5665:126.9780", "19.4326:-99.1332", "35.6762:139.6503", "41.0082:28.9784", "35.6892:51.3890", "31.2304:121.4737", "31.2244:121.4759"];
+    let lat_lng = vec![
+        "41.8931:12.4828",
+        "40.7128:74.0060",
+        "51.5074:0.1278",
+        "48.8566:2.3522",
+        "55.7558:37.6173",
+        "52.5200:13.4050",
+        "37.7749:122.4194",
+        "35.6895:139.6917",
+        "37.5665:126.9780",
+        "19.4326:-99.1332",
+        "35.6762:139.6503",
+        "41.0082:28.9784",
+        "35.6892:51.3890",
+        "31.2304:121.4737",
+        "31.2244:121.4759",
+    ];
     let lat_lng_index = rand::thread_rng().gen_range(0..15);
 
     return lat_lng[lat_lng_index].to_string();
