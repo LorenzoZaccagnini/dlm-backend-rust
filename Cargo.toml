@@ -1,5 +1,5 @@
 [package]
-name = "rust-test-ecies"
+name = "dlm-backend-rust"
 version = "0.1.0"
 edition = "2021"
 
